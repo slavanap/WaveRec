@@ -13,9 +13,9 @@
 #include <Mmdeviceapi.h>
 #include <Audioclient.h>
 
-#include <stdexcept>		// std::runtime_error
-#include <fstream>			// std::ofstream
-#include <iterator>			// std::ostream_iterator
+#include <stdexcept>        // std::runtime_error
+#include <fstream>          // std::ofstream
+#include <iterator>         // std::ostream_iterator
 
 // ATL is for CComPtr
 #define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS
@@ -24,10 +24,10 @@
 
 class IAudioWriter {
 public:
-	// set format of output audio. Calls once before CopyData
+	// Set format of output audio. Called once before CopyData.
 	virtual void SetFormat(WAVEFORMATEX* fmt) abstract;
 
-	// actually writes data. if return value == false then breaks from recording loop.
+	// Actually writes data. If return value is 'false' then breaks from recording loop.
 	virtual bool CopyData(BYTE* data, UINT32 nFrames) abstract;
 };
 
@@ -72,7 +72,10 @@ void RecordAudioStream(IAudioWriter& writer) {
 	const REFERENCE_TIME hnsRequestedDuration = REFTIMES_PER_SEC;
 	REFERENCE_TIME hnsActualDuration;
 	UINT32 bufferFrameCount;
-	if (FAILED(pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, hnsRequestedDuration, 0, pwfx, nullptr)))
+	if (FAILED(
+		pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK,
+			hnsRequestedDuration, 0, pwfx, nullptr)
+	))
 		throw std::runtime_error("Device initialization failed");
 
 	// Get the size of the allocated buffer.
@@ -91,7 +94,8 @@ void RecordAudioStream(IAudioWriter& writer) {
 		throw std::runtime_error("failed to start recording");
 
 	// Each loop fills about half of the shared buffer.
-	while (true) {
+	bool bContinue = true;
+	while (bContinue) {
 		UINT32 packetLength = 0;
 		if (FAILED(pCaptureClient->GetNextPacketSize(&packetLength)))
 			throw std::runtime_error("GetNextPacketSize failed");
@@ -114,8 +118,7 @@ void RecordAudioStream(IAudioWriter& writer) {
 		}
 		
 		// Copy the available capture data to the audio sink.
-		if (!writer.CopyData(pData, numFramesAvailable))
-			break;
+		bContinue = writer.CopyData(pData, numFramesAvailable);
 
 		if (FAILED(pCaptureClient->ReleaseBuffer(numFramesAvailable)))
 			throw std::runtime_error("ReleaseBuffer failed");
@@ -176,6 +179,7 @@ public:
 
 		_fmt = (WAVEFORMATEX*)(_header + sizeof(WAVEHEADER));
 		memcpy(_fmt, fmt, fmt_size);
+
 		_dataheader = (CHUNKHEADER*)(((char*)_fmt) + fmt_size);
 		_dataheader->dwSubchunk1ID = mmioFOURCC('d', 'a', 't', 'a');
 		_dataheader->dwSubchunk1Size = 0;
@@ -197,7 +201,7 @@ public:
 		_f.flush();
 		printInfo();
 
-		// Check if termination via Ctrl+C handler initiated
+		// Check if termination via Ctrl+C handler initiated.
 		return !flag_stop;
 	}
 
@@ -251,7 +255,8 @@ int _tmain(int argc, TCHAR* argv[])
 	SYSTEMTIME st;
 	GetLocalTime(&st);
 	TCHAR buffer[128];
-	_stprintf(buffer, TEXT("output_%04d%02d%02d-%02d%02d%02d_%03d.wav"), st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+	_stprintf(buffer, TEXT("output_%04d%02d%02d-%02d%02d%02d_%03d.wav"),
+		st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
 
 	try {
 		if (FAILED(CoInitialize(nullptr)))
@@ -273,10 +278,9 @@ int _tmain(int argc, TCHAR* argv[])
 		SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED);
 
 		RecordAudioStream(writer);
-
 	}
 	catch (const std::exception& e) {
-		printf("EXCEPTION: %s\n", e.what());
+		printf("ERROR: %s\n", e.what());
 	}
 
 	CoUninitialize();
